@@ -1,1 +1,352 @@
 phrazle-01.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phrazle: Custom Phrase</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1c2b3a;
+    --panel: #f4f1e9;
+    --steel: #2f4964;
+    --steel-dark: #1c2f42;
+    --amber: #e08a1e;
+    --amber-dark: #a3600c;
+    --green: #3f7a4a;
+    --gray: #7c8792;
+    --line: #c9c2ae;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--panel);
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 40px;
+    min-height: 100vh;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .header .eyebrow {
+    font-family: 'Oswald', sans-serif;
+    letter-spacing: 0.3em;
+    font-size: 12px;
+    color: var(--amber-dark);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .header h1 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 34px;
+    font-weight: 700;
+    margin: 4px 0 6px;
+    color: var(--steel-dark);
+    letter-spacing: 0.02em;
+  }
+  .header p {
+    font-size: 13px;
+    color: var(--steel);
+    margin: 0;
+  }
+  .board {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+  .row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .word-group {
+    display: flex;
+    gap: 6px;
+    background: rgba(47,73,100,0.06);
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+  .tile {
+    width: 38px;
+    height: 38px;
+    border: 2px solid var(--line);
+    border-radius: 3px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--steel-dark);
+    text-transform: uppercase;
+    transition: transform 0.15s ease;
+  }
+  .tile.filled { border-color: var(--steel); transform: scale(1.03); }
+  .tile.correct { background: var(--green); border-color: var(--green); color: #fff; }
+  .tile.present { background: var(--amber); border-color: var(--amber); color: #fff; }
+  .tile.absent { background: var(--gray); border-color: var(--gray); color: #fff; }
+  .tile.flip { animation: flip 0.4s ease; }
+  @keyframes flip {
+    0% { transform: rotateX(0deg); }
+    50% { transform: rotateX(90deg); }
+    100% { transform: rotateX(0deg); }
+  }
+  #message {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    min-height: 22px;
+    margin-bottom: 14px;
+    color: var(--steel-dark);
+    text-align: center;
+  }
+  #message.win { color: var(--green); }
+  #message.lose { color: var(--amber-dark); }
+  .keyboard {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 480px;
+  }
+  .krow { display: flex; gap: 5px; justify-content: center; }
+  .key {
+    min-width: 30px;
+    height: 42px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 4px;
+    background: var(--steel);
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .key:active { transform: scale(0.95); }
+  .key.wide { min-width: 52px; font-size: 11px; }
+  .key.correct { background: var(--green); }
+  .key.present { background: var(--amber); }
+  .key.absent { background: var(--gray); }
+  .footer-note {
+    margin-top: 18px;
+    font-size: 11px;
+    color: var(--steel);
+    text-align: center;
+    max-width: 320px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="eyebrow">Custom Phrazle</div>
+  <h1>Guess the phrase</h1>
+  <p>Three words. Six tries. Spaces are free.</p>
+  <p style="font-size: 22px; margin-top: 8px;">🧩⏳</p>
+</div>
+
+<div class="board" id="board"></div>
+<div id="message"></div>
+<div class="keyboard" id="keyboard"></div>
+<div class="footer-note">Green = right letter, right spot. Amber = right letter, wrong spot. Gray = not in the phrase.</div>
+
+<script>
+const ANSWER = "Puzzles and Patience".toUpperCase();
+const WORDS = ANSWER.split(" ");
+const MAX_GUESSES = 6;
+const totalLetters = ANSWER.replace(/ /g, "").length;
+
+let guesses = [];
+let current = "";
+let finished = false;
+
+const board = document.getElementById('board');
+const message = document.getElementById('message');
+const keyboard = document.getElementById('keyboard');
+
+function buildEmptyRow() {
+  const row = document.createElement('div');
+  row.className = 'row';
+  WORDS.forEach(w => {
+    const group = document.createElement('div');
+    group.className = 'word-group';
+    for (let i = 0; i < w.length; i++) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      group.appendChild(tile);
+    }
+    row.appendChild(group);
+  });
+  return row;
+}
+
+for (let r = 0; r < MAX_GUESSES; r++) {
+  board.appendChild(buildEmptyRow());
+}
+
+function currentLetterIndex() {
+  return current.length;
+}
+
+function renderCurrentRow() {
+  const rowIndex = guesses.length;
+  const row = board.children[rowIndex];
+  const tiles = row.querySelectorAll('.tile');
+  for (let i = 0; i < totalLetters; i++) {
+    tiles[i].textContent = current[i] || "";
+    tiles[i].classList.toggle('filled', !!current[i]);
+  }
+}
+
+function scoreGuess(guess) {
+  const answerLetters = ANSWER.replace(/ /g, "").split("");
+  const guessLetters = guess.split("");
+  const result = new Array(guessLetters.length).fill('absent');
+  const pool = [...answerLetters];
+
+  for (let i = 0; i < guessLetters.length; i++) {
+    if (guessLetters[i] === answerLetters[i]) {
+      result[i] = 'correct';
+      pool[i] = null;
+    }
+  }
+  for (let i = 0; i < guessLetters.length; i++) {
+    if (result[i] === 'correct') continue;
+    const idx = pool.indexOf(guessLetters[i]);
+    if (idx !== -1) {
+      result[i] = 'present';
+      pool[idx] = null;
+    }
+  }
+  return result;
+}
+
+const KEY_ROWS = [
+  "QWERTYUIOP".split(""),
+  "ASDFGHJKL".split(""),
+  ["ENTER", ..."ZXCVBNM".split(""), "DEL"]
+];
+const keyState = {};
+
+function buildKeyboard() {
+  keyboard.innerHTML = "";
+  KEY_ROWS.forEach(rowKeys => {
+    const krow = document.createElement('div');
+    krow.className = 'krow';
+    rowKeys.forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'key' + (k.length > 1 ? ' wide' : '');
+      btn.textContent = k === 'DEL' ? 'DEL' : k;
+      btn.dataset.key = k;
+      btn.addEventListener('click', () => handleKey(k));
+      krow.appendChild(btn);
+    });
+    keyboard.appendChild(krow);
+  });
+}
+buildKeyboard();
+
+function updateKeyboardColors() {
+  document.querySelectorAll('.key').forEach(btn => {
+    const k = btn.dataset.key;
+    const state = keyState[k];
+    btn.classList.remove('correct', 'present', 'absent');
+    if (state) btn.classList.add(state);
+  });
+}
+
+function setMessage(text, cls) {
+  message.textContent = text;
+  message.className = cls || "";
+}
+
+function handleKey(k) {
+  if (finished) return;
+  if (k === 'ENTER') {
+    submitGuess();
+  } else if (k === 'DEL') {
+    current = current.slice(0, -1);
+    renderCurrentRow();
+    setMessage("");
+  } else if (/^[A-Z]$/.test(k)) {
+    if (current.length < totalLetters) {
+      current += k;
+      renderCurrentRow();
+      setMessage("");
+    }
+  }
+}
+
+function submitGuess() {
+  if (current.length !== totalLetters) {
+    setMessage("Not enough letters.");
+    return;
+  }
+
+  const rowIndex = guesses.length;
+  const rowEl = board.children[rowIndex];
+  const tiles = rowEl.querySelectorAll('.tile');
+  const result = scoreGuess(current);
+
+  tiles.forEach((tile, i) => {
+    setTimeout(() => {
+      tile.classList.add('flip');
+      tile.classList.add(result[i]);
+    }, i * 80);
+  });
+
+  let letterPos = 0;
+  for (const word of WORDS) {
+    for (let i = 0; i < word.length; i++) {
+      const letter = current[letterPos];
+      const state = result[letterPos];
+      const rank = { absent: 0, present: 1, correct: 2 };
+      if (!keyState[letter] || rank[state] > rank[keyState[letter]]) {
+        keyState[letter] = state;
+      }
+      letterPos++;
+    }
+  }
+
+  setTimeout(() => {
+    updateKeyboardColors();
+    guesses.push(current);
+
+    if (current === ANSWER.replace(/ /g, "")) {
+      finished = true;
+      setMessage("Solved in " + guesses.length + "/" + MAX_GUESSES + ".", "win");
+    } else if (guesses.length >= MAX_GUESSES) {
+      finished = true;
+      setMessage("Out of tries. It was: " + ANSWER, "lose");
+    } else {
+      current = "";
+      renderCurrentRow();
+    }
+  }, totalLetters * 80 + 300);
+}
+
+document.addEventListener('keydown', (e) => {
+  const k = e.key.toUpperCase();
+  if (k === 'ENTER') handleKey('ENTER');
+  else if (k === 'BACKSPACE') handleKey('DEL');
+  else if (/^[A-Z]$/.test(k)) handleKey(k);
+});
+</script>
+
+</body>
+</html>
